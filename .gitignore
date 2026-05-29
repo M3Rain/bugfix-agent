@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+workdir/
+memory_store/
+eval/results/
+.pytest_cache/
+.streamlit/
