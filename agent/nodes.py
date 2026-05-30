@@ -105,3 +105,28 @@ def act(state: AgentState) -> dict:
     except Exception as e:
         step.observation = f"{type(e).__name__}: {e}"
     return {"history": history}
+
+
+def reflect(state: AgentState, chat=None) -> dict:
+    chat = chat or get_chat(temperature=0.4)
+    bug = state["bug_name"]
+    attempt_history = _format_history(state.get("history") or [])
+    test_output = (state.get("test_result") or {}).get("output", "")
+    prompt = REFLECT_PROMPT.format(
+        bug_name=bug,
+        attempt_history=attempt_history,
+        test_output=test_output,
+    )
+    resp = chat.invoke([{"role": "user", "content": prompt}])
+    text = resp.content.strip()
+    if not text.startswith("Lesson:"):
+        text = "Lesson: " + text
+    return {"new_reflections": (state.get("new_reflections") or []) + [text]}
+
+
+def persist(state: AgentState, store: Optional[ReflectionStore] = None) -> dict:
+    store = store or ReflectionStore()
+    bug = state["bug_name"]
+    for i, r in enumerate(state.get("new_reflections") or []):
+        store.add(bug_name=bug, reflection=r, attempt=i + 1)
+    return {}

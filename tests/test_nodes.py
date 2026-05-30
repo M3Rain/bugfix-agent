@@ -64,3 +64,28 @@ def test_reason_appends_step_with_mocked_llm(tmp_path, monkeypatch):
     assert len(out["history"]) == 1
     assert out["history"][0].thought.startswith("I will read")
     assert 'read_file' in out["history"][0].action
+
+
+
+def test_reflect_appends_reflection_with_mocked_llm():
+    fake_chat = MagicMock()
+    fake_chat.invoke.return_value = MagicMock(content="Lesson: check the base case.")
+    state: AgentState = {
+        "bug_name": "bitcount",
+        "history": [Step(thought="try a", action="edit_file(...)", observation="FAIL")],
+        "attempt": 1,
+        "test_result": {"passed": False, "output": "AssertionError", "timed_out": False},
+        "new_reflections": [],
+    }
+    out = nodes.reflect(state, chat=fake_chat)
+    assert out["new_reflections"] == ["Lesson: check the base case."]
+
+
+def test_persist_writes_all_new_reflections():
+    fake_store = MagicMock()
+    state: AgentState = {
+        "bug_name": "bitcount",
+        "new_reflections": ["Lesson: a", "Lesson: b"],
+    }
+    nodes.persist(state, store=fake_store)
+    assert fake_store.add.call_count == 2
