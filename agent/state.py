@@ -5,7 +5,9 @@ pulling in chroma / ollama at import time. `TestResult` lives in tools.py
 (it's the return type of run_tests); we import it here to avoid duplication."""
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Literal
+
+from typing_extensions import TypedDict
 
 from agent.tools import TestResult
 

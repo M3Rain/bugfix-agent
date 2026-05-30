@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
-from typing import TypedDict
+from typing_extensions import TypedDict
 
 
 def read_file(path: str) -> str:
