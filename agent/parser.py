@@ -9,6 +9,11 @@ ALLOWED_TOOLS = {"read_file", "edit_file", "run_tests", "finish"}
 
 _NAME_RE = re.compile(r"\s*([A-Za-z_]\w*)\s*\(")
 
+# Escape sequences the LLM commonly emits inside string args. We must decode
+# these (e.g. "\n" -> a real newline) so an edit_file `old` value matches the
+# actual file contents. Unknown escapes fall back to the literal next char.
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\", "'": "'", "0": "\0"}
+
 
 class ParseError(ValueError):
     pass
@@ -31,7 +36,8 @@ def _parse_kwargs(s: str) -> dict[str, str]:
         while i < len(s):
             ch = s[i]
             if ch == "\\" and i + 1 < len(s):
-                buf.append(s[i + 1])
+                nxt = s[i + 1]
+                buf.append(_ESCAPES.get(nxt, nxt))
                 i += 2
                 continue
             if ch == '"':

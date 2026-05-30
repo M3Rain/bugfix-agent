@@ -29,6 +29,8 @@ class AgentState(TypedDict, total=False):
     history: list[Step]
     attempt: int
     max_attempts: int
+    last_tool: str          # tool name run by the most recent Act (routing hint)
+    tested: bool            # did the most recent Act actually run the suite?
 
     # long-term reflexion memory
     retrieved_reflections: list[str]

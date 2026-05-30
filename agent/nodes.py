@@ -31,7 +31,7 @@ def _format_history(history: list[Step]) -> str:
 
 def retrieve(state: AgentState, store: Optional[ReflectionStore] = None) -> dict:
     store = store or ReflectionStore()
-    code = tool_mod.read_file(str(tool_mod.sandbox_path(state["bug_name"]) / f"{state['bug_name']}.py"))
+    code = tool_mod.read_file(str(tool_mod.program_path(state["bug_name"])))
     query = f"{state['bug_name']}\n{code[:500]}"
     hits = store.search(query, k=3)
     return {"retrieved_reflections": hits, "new_reflections": []}
@@ -40,8 +40,7 @@ def retrieve(state: AgentState, store: Optional[ReflectionStore] = None) -> dict
 def reason(state: AgentState, chat=None) -> dict:
     chat = chat or get_chat()
     bug = state["bug_name"]
-    code_path = tool_mod.sandbox_path(bug) / f"{bug}.py"
-    code = tool_mod.read_file(str(code_path))
+    code = tool_mod.read_file(str(tool_mod.program_path(bug)))
     last_test = (state.get("test_result") or {}).get("output", "(not run yet)")
 
     sys = SYSTEM_PROMPT.format(
@@ -72,7 +71,7 @@ def reason(state: AgentState, chat=None) -> dict:
 def act(state: AgentState) -> dict:
     history = list(state.get("history") or [])
     if not history:
-        return {}
+        return {"last_tool": "none", "tested": False}
     step = history[-1]
     bug = state["bug_name"]
     sb = tool_mod.sandbox_path(bug)
@@ -81,30 +80,71 @@ def act(state: AgentState) -> dict:
         call = parse_action(step.action)
     except ParseError as e:
         step.observation = f"ParseError: {e}. Re-emit a valid Action."
-        return {"history": history}
+        return {"history": history, "last_tool": "parse_error", "tested": False}
 
     tool, args = call["tool"], call["args"]
+    update = {"history": history, "last_tool": tool, "tested": False}
     try:
         if tool == "read_file":
-            content = tool_mod.read_file(str(sb / args["path"]))
-            step.observation = content
+            step.observation = tool_mod.read_file(str(sb / args["path"]))
         elif tool == "edit_file":
+            # Guard 1: refuse edits that inject a print() the original didn't
+            # have. A 7B model ignores the "no print()" prompt rule; the print
+            # lands at the wrong indent, breaks import, and the agent spirals.
+            if "print(" in args["new"] and "print(" not in args["old"]:
+                step.observation = (
+                    "Rejected: do not add print() statements — you cannot see "
+                    "their output and they corrupt indentation. Fix the program "
+                    "logic directly instead."
+                )
+                return update  # not tested → routing keeps the episode going
+            # Guard 2: refuse an edit identical to one already tried this run.
+            # The prompt says don't repeat, but the model re-emits byte-identical
+            # edits; enforce it in code so it can't loop on a dead end.
+            prior_edits = set()
+            for past in history[:-1]:
+                try:
+                    pc = parse_action(past.action)
+                except ParseError:
+                    continue
+                if pc["tool"] == "edit_file":
+                    prior_edits.add((pc["args"].get("old"), pc["args"].get("new")))
+            if (args["old"], args["new"]) in prior_edits:
+                step.observation = (
+                    "Rejected: you already tried this exact edit and it did not "
+                    "work. Try a DIFFERENT change."
+                )
+                return update  # not tested → routing keeps the episode going
             tool_mod.edit_file(str(sb / args["path"]), args["old"], args["new"])
-            step.observation = f"ok — edited {args['path']}"
+            # Auto-verify: a weak local model won't reliably choose to test, and
+            # reasoning without test feedback just guesses. Running the suite
+            # after every edit grounds the next Thought in a real result and
+            # makes each edit count as one attempt.
+            result = tool_mod.run_tests(bug)
+            update["test_result"] = result
+            update["tested"] = True
+            verdict = "PASS" if result["passed"] else "FAIL"
+            step.observation = (
+                f"ok — edited {args['path']}\n"
+                f"Tests after edit: {verdict}\n{result['output']}"
+            )
         elif tool == "run_tests":
             result = tool_mod.run_tests(bug)
+            update["test_result"] = result
+            update["tested"] = True
             step.observation = (
                 f"{'PASS' if result['passed'] else 'FAIL'}\n{result['output']}"
             )
-            return {"history": history, "test_result": result}
         elif tool == "finish":
             step.observation = "finish requested"
-            # let the routing layer decide if tests actually pass
+            # routing layer decides whether tests actually pass
         else:
             step.observation = f"unknown tool: {tool}"
     except Exception as e:
+        # e.g. EditError (ambiguous/missing old): not a test failure — let the
+        # agent retry within the same episode rather than burning an attempt.
         step.observation = f"{type(e).__name__}: {e}"
-    return {"history": history}
+    return update
 
 
 def reflect(state: AgentState, chat=None) -> dict:

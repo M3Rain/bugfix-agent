@@ -5,9 +5,9 @@ from agent import nodes
 
 def test_retrieve_populates_reflections(tmp_path, monkeypatch):
     monkeypatch.setenv("BUGFIX_WORKDIR", str(tmp_path / "wd"))
-    sb = tmp_path / "wd" / "bitcount"
-    sb.mkdir(parents=True)
-    (sb / "bitcount.py").write_text("def bitcount(n): return 0\n")
+    progs = tmp_path / "wd" / "bitcount" / "python_programs"
+    progs.mkdir(parents=True)
+    (progs / "bitcount.py").write_text("def bitcount(n): return 0\n")
 
     fake_store = MagicMock()
     fake_store.search.return_value = ["Lesson: check base case"]
@@ -43,9 +43,9 @@ def test_act_handles_parse_error():
 
 def test_reason_appends_step_with_mocked_llm(tmp_path, monkeypatch):
     monkeypatch.setenv("BUGFIX_WORKDIR", str(tmp_path / "wd"))
-    sb = tmp_path / "wd" / "x"
-    sb.mkdir(parents=True)
-    (sb / "x.py").write_text("def x(): return 0\n")
+    progs = tmp_path / "wd" / "x" / "python_programs"
+    progs.mkdir(parents=True)
+    (progs / "x.py").write_text("def x(): return 0\n")
 
     fake_chat = MagicMock()
     fake_chat.invoke.return_value = MagicMock(

@@ -52,8 +52,9 @@ def test_prepare_sandbox_copies_program_and_tests(tmp_path, monkeypatch):
     )
 
     sb = prepare_sandbox("bitcount")
-    assert (sb / "bitcount.py").exists()
-    assert (sb / "test_bitcount.py").exists()
+    # QuixBugs layout: program under python_programs/, test under python_testcases/.
+    assert (sb / "python_programs" / "bitcount.py").exists()
+    assert (sb / "python_testcases" / "test_bitcount.py").exists()
 
 
 def test_run_tests_detects_failure(tmp_path, monkeypatch):
@@ -63,7 +64,7 @@ def test_run_tests_detects_failure(tmp_path, monkeypatch):
     (tmp_path / "data" / "tests").mkdir(parents=True)
     (tmp_path / "data" / "programs" / "x.py").write_text("def x(): return 0\n")
     (tmp_path / "data" / "tests" / "test_x.py").write_text(
-        "from x import x\n"
+        "from python_programs.x import x\n"
         "def test_x():\n"
         "    assert x() == 1\n"
     )
@@ -80,7 +81,7 @@ def test_run_tests_detects_pass(tmp_path, monkeypatch):
     (tmp_path / "data" / "tests").mkdir(parents=True)
     (tmp_path / "data" / "programs" / "y.py").write_text("def y(): return 1\n")
     (tmp_path / "data" / "tests" / "test_y.py").write_text(
-        "from y import y\n"
+        "from python_programs.y import y\n"
         "def test_y():\n"
         "    assert y() == 1\n"
     )

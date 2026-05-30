@@ -25,6 +25,15 @@ def test_parse_edit_file_multiline():
     assert out["args"]["new"] == "x = 99\nx = 2"
 
 
+def test_parse_decodes_backslash_escapes():
+    # The LLM emits the two characters backslash + n, which must decode to a
+    # real newline so edit_file `old` can match the file's actual contents.
+    raw = r'edit_file(path="a.py", old="n ^= n - 1\n        count += 1", new="n &= n - 1\n        count += 1")'
+    out = parse_action(raw)
+    assert out["args"]["old"] == "n ^= n - 1\n        count += 1"
+    assert out["args"]["new"] == "n &= n - 1\n        count += 1"
+
+
 def test_parse_bad_format_raises():
     with pytest.raises(ParseError):
         parse_action("here is not a tool call")
