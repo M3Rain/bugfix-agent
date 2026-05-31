@@ -1,5 +1,6 @@
 """Wires nodes into a LangGraph state machine and exposes run()."""
 from __future__ import annotations
+import os
 from langgraph.graph import StateGraph, START, END
 
 from agent.state import AgentState, Step
@@ -52,34 +53,45 @@ def _bump_attempt(state: AgentState) -> dict:
     return {"attempt": (state.get("attempt") or 1) + 1}
 
 
-def build_graph():
+def build_graph(disable_reflexion: bool | None = None):
+    if disable_reflexion is None:
+        disable_reflexion = os.environ.get("BUGFIX_DISABLE_REFLEXION") == "1"
     g = StateGraph(AgentState)
-    g.add_node("retrieve", nodes.retrieve)
     g.add_node("reason", nodes.reason)
     g.add_node("act", nodes.act)
-    g.add_node("reflect", nodes.reflect)
     g.add_node("bump_attempt", _bump_attempt)
-    g.add_node("persist", nodes.persist)
 
-    g.add_edge(START, "retrieve")
-    g.add_edge("retrieve", "reason")
+    if not disable_reflexion:
+        g.add_node("retrieve", nodes.retrieve)
+        g.add_node("reflect", nodes.reflect)
+        g.add_node("persist", nodes.persist)
+        g.add_edge(START, "retrieve")
+        g.add_edge("retrieve", "reason")
+    else:
+        g.add_edge(START, "reason")
+
     g.add_edge("reason", "act")
-    g.add_conditional_edges(
-        "act",
-        _route_after_act,
-        {
-            "persist": "persist",       # tests passed, or agent finished, or cap
-            "reason": "reason",         # mid-episode tool step — keep going
-            "reflect_retry": "reflect", # failed test, budget remains
-            "reflect_final": "reflect", # failed test, last attempt / cap
-        },
-    )
-    g.add_conditional_edges("reflect", _after_reflect, {
-        "persist": "persist",
-        "bump_attempt": "bump_attempt",
-    })
-    g.add_edge("bump_attempt", "reason")
-    g.add_edge("persist", END)
+
+    def _after_act(state):
+        result = state.get("test_result") or {}
+        if result.get("passed"):
+            return "done"
+        if (state.get("attempt") or 1) >= (state.get("max_attempts") or 6):
+            return "done"
+        return "retry"
+
+    if disable_reflexion:
+        g.add_conditional_edges("act", _after_act, {"done": END, "retry": "bump_attempt"})
+        g.add_edge("bump_attempt", "reason")
+    else:
+        g.add_conditional_edges("act", _after_act, {"done": "persist", "retry": "reflect"})
+        def _after_reflect(state):
+            if (state.get("attempt") or 1) >= (state.get("max_attempts") or 6):
+                return "persist"
+            return "bump_attempt"
+        g.add_conditional_edges("reflect", _after_reflect, {"persist": "persist", "bump_attempt": "bump_attempt"})
+        g.add_edge("bump_attempt", "reason")
+        g.add_edge("persist", END)
     return g.compile()
 
 
