@@ -52,3 +52,7 @@ ollama pull nomic-embed-text
 
 # vendor the QuixBugs data
 python scripts/fetch_quixbugs.py
+
+
+# launch the UI
+streamlit run app.py
