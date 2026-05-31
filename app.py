@@ -48,7 +48,10 @@ if run_btn:
         "status": "running",
     }
 
-    for event in graph.stream(initial, stream_mode="values"):
+    # Match the recursion limit used by graph.run(): a ReAct episode takes
+    # several super-steps per attempt, so the default of 25 trips on hard bugs.
+    config = {"recursion_limit": max_attempts * 12 + 20}
+    for event in graph.stream(initial, stream_mode="values", config=config):
         # Update memory panels
         if event.get("retrieved_reflections"):
             retrieved_area.markdown(
