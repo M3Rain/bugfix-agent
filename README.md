@@ -37,22 +37,3 @@ See `demo/demo.md` for the 2-minute video link.
 ![architecture](architecture.png)
 
 
-## Setup
-
-Prerequisites: Python 3.11+, [Ollama](https://ollama.com).
-
-```bash
-git clone <repo-url>
-cd bugfix-agent
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-ollama pull qwen2.5-coder:7b
-ollama pull nomic-embed-text
-
-# vendor the QuixBugs data
-python scripts/fetch_quixbugs.py
-
-
-# launch the UI
-streamlit run app.py
