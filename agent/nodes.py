@@ -47,7 +47,12 @@ def retrieve(state: AgentState, store: Optional[ReflectionStore] = None) -> dict
 
 
 def reason(state: AgentState, chat=None) -> dict:
-    chat = chat or get_chat()
+    if chat is None:
+        # Raise temperature on later attempts so a stuck agent breaks out of a
+        # deterministic rut (re-emitting the same dead-end edit) instead of
+        # producing the identical Thought/Action every time.
+        attempt = state.get("attempt", 1) or 1
+        chat = get_chat(temperature=min(0.2 + 0.15 * (attempt - 1), 0.8))
     bug = state["bug_name"]
     code = tool_mod.read_file(str(tool_mod.program_path(bug)))
     last_test = (state.get("test_result") or {}).get("output", "(not run yet)")

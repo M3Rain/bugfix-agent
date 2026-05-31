@@ -13,6 +13,18 @@ def _step_cap(state: AgentState) -> int:
     return (state.get("max_attempts") or 6) * 4
 
 
+def _consecutive_rejections(history) -> int:
+    """How many trailing steps were guard-rejected edits (no test ran).
+    Used to detect when the agent is stuck re-emitting a dead-end edit."""
+    n = 0
+    for step in reversed(history):
+        if (step.observation or "").startswith("Rejected:"):
+            n += 1
+        else:
+            break
+    return n
+
+
 def _route_after_act(state: AgentState) -> str:
     """Decide what to do after an Action executes.
 
@@ -36,7 +48,15 @@ def _route_after_act(state: AgentState) -> str:
             return "reflect_final"
         return "reflect_retry"
 
-    # read_file / failed edit / parse_error: keep working in the same episode.
+    # If the agent is stuck re-emitting rejected edits, escalate to reflection
+    # (write a lesson + bump the attempt + diversify sampling) rather than
+    # looping back to `reason` with the identical context forever.
+    if _consecutive_rejections(history) >= 2:
+        if (state.get("attempt") or 1) >= (state.get("max_attempts") or 6):
+            return "reflect_final"
+        return "reflect_retry"
+
+    # read_file / single failed edit / parse_error: keep working in the episode.
     return "reason"
 
 
