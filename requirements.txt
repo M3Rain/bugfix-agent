@@ -4,3 +4,5 @@ langchain-core==0.3.31
 chromadb==0.5.23
 streamlit==1.40.2
 pytest==8.3.4
+matplotlib==3.9.2
+pandas==2.2.3
