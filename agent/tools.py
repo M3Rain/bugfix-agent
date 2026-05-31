@@ -164,6 +164,6 @@ def run_tests(bug_name: str, timeout: int = 10) -> TestResult:
     except subprocess.TimeoutExpired as e:
         return {
             "passed": False,
-            "output": f"TIMEOUT after {timeout}s\n{(e.stdout or b'').decode()[-1500:]}",
+            "output": f"TIMEOUT after {timeout}s\n{(e.stdout or '')[-1500:]}",
             "timed_out": True,
         }

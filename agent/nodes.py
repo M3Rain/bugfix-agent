@@ -1,8 +1,15 @@
 """LangGraph node functions. Each takes an AgentState and returns a partial
 state update dict."""
 from __future__ import annotations
+import os
 import re
 from typing import Optional
+
+
+def _reflexion_disabled() -> bool:
+    """Ablation switch: when set, the agent runs as pure ReAct — no retrieval,
+    no verbal reflection, no long-term memory writes."""
+    return os.environ.get("BUGFIX_DISABLE_REFLEXION") == "1"
 
 from agent.state import AgentState, Step
 from agent.prompts import SYSTEM_PROMPT, REASON_USER_PROMPT, REFLECT_PROMPT
@@ -30,6 +37,8 @@ def _format_history(history: list[Step]) -> str:
 
 
 def retrieve(state: AgentState, store: Optional[ReflectionStore] = None) -> dict:
+    if _reflexion_disabled():
+        return {"retrieved_reflections": [], "new_reflections": []}
     store = store or ReflectionStore()
     code = tool_mod.read_file(str(tool_mod.program_path(state["bug_name"])))
     query = f"{state['bug_name']}\n{code[:500]}"
@@ -148,6 +157,8 @@ def act(state: AgentState) -> dict:
 
 
 def reflect(state: AgentState, chat=None) -> dict:
+    if _reflexion_disabled():
+        return {}                       # ablation: no verbal self-criticism
     chat = chat or get_chat(temperature=0.4)
     bug = state["bug_name"]
     attempt_history = _format_history(state.get("history") or [])
@@ -165,6 +176,8 @@ def reflect(state: AgentState, chat=None) -> dict:
 
 
 def persist(state: AgentState, store: Optional[ReflectionStore] = None) -> dict:
+    if _reflexion_disabled():
+        return {}                       # ablation: nothing to save
     store = store or ReflectionStore()
     bug = state["bug_name"]
     for i, r in enumerate(state.get("new_reflections") or []):
