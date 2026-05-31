@@ -143,7 +143,23 @@ def act(state: AgentState) -> dict:
                     "work. Try a DIFFERENT change."
                 )
                 return update  # not tested → routing keeps the episode going
-            tool_mod.edit_file(str(sb / args["path"]), args["old"], args["new"])
+            target = sb / args["path"]
+            snapshot = target.read_text(encoding="utf-8")   # for revert-on-break
+            tool_mod.edit_file(str(target), args["old"], args["new"])
+            # Guard 3: an edit that makes the file unparseable can never pass and
+            # traps the agent in a syntax/indentation spiral. QuixBugs originals
+            # always parse, so a SyntaxError here is self-inflicted — revert it
+            # and ask for a different change instead of letting it compound.
+            try:
+                compile(target.read_text(encoding="utf-8"), str(target), "exec")
+            except SyntaxError as e:
+                target.write_text(snapshot, encoding="utf-8")
+                step.observation = (
+                    f"Rejected: your edit introduced a syntax error ({e.msg}) and "
+                    f"was reverted — the file no longer parses. Make a different, "
+                    f"minimal change (usually one operator or index, not new lines)."
+                )
+                return update                     # tested=False → escalation
             # Auto-verify: a weak local model won't reliably choose to test, and
             # reasoning without test feedback just guesses. Running the suite
             # after every edit grounds the next Thought in a real result and

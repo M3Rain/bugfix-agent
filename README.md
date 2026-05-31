@@ -24,8 +24,6 @@ streamlit run app.py
 
 ```bash
 python eval/run_eval.py --mode headline
-python eval/run_eval.py --mode ablation
-python eval/run_eval.py --mode accumulation
 ```
 
 ## Demo
