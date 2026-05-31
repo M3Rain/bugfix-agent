@@ -22,13 +22,15 @@ streamlit run app.py
 
 ## Evaluate
 
+
+
 ```bash
 python eval/run_eval.py --mode headline
 ```
 
 ## Demo
 
-See `demo/demo.md` for the 2-minute video link.
+See `https://youtu.be/f2x_8YfPtwo` for the 2-minute video link.
 
 ## Architecture
 
