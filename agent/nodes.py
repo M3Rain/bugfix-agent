@@ -11,6 +11,20 @@ def _reflexion_disabled() -> bool:
     no verbal reflection, no long-term memory writes."""
     return os.environ.get("BUGFIX_DISABLE_REFLEXION") == "1"
 
+
+def _redundant_run_tests(history: list) -> bool:
+    """True if the most recent executed step already ran the suite and no edit
+    has happened since — so calling run_tests again gives the identical result.
+    (edit_file auto-runs the suite, so a standalone run_tests is only useful to
+    establish the very first baseline.)"""
+    for step in reversed(history[:-1]):          # skip the current run_tests step
+        obs = step.observation or ""
+        if obs.startswith("ok — edited"):
+            return False                         # an edit (auto-tested) since → allow
+        if obs.startswith(("PASS", "FAIL")) or "TIMEOUT after" in obs:
+            return True                          # prior test result, no edit between
+    return False                                 # no prior test → first run, allow
+
 from agent.state import AgentState, Step
 from agent.prompts import SYSTEM_PROMPT, REASON_USER_PROMPT, REFLECT_PROMPT
 from agent.parser import parse_action, ParseError
@@ -143,6 +157,16 @@ def act(state: AgentState) -> dict:
                 f"Tests after edit: {verdict}\n{result['output']}"
             )
         elif tool == "run_tests":
+            # Re-running on unchanged code can't change the result. Reject it so
+            # the agent is pushed to edit instead of spinning on run_tests; the
+            # "Rejected:" prefix feeds the same escalation counter as repeats.
+            if _redundant_run_tests(history):
+                step.observation = (
+                    "Rejected: the program is unchanged since the last test run, "
+                    "so re-running gives the same result. A TIMEOUT means the code "
+                    "has an infinite loop — edit_file to fix the logic."
+                )
+                return update                     # tested stays False → escalation
             result = tool_mod.run_tests(bug)
             update["test_result"] = result
             update["tested"] = True
