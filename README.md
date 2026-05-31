@@ -34,9 +34,8 @@ See `demo/demo.md` for the 2-minute video link.
 
 ## Architecture
 
-![architecture](docs/architecture.png)
+![architecture](architecture.png)
 
-See `docs/report.md` for the full write-up.
 
 ## Setup
 
