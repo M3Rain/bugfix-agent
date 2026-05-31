@@ -30,7 +30,7 @@ python eval/run_eval.py --mode headline
 
 ## Demo
 
-See `https://youtu.be/f2x_8YfPtwo` for the 2-minute video link.
+See `https://youtu.be/f2x_8YfPtwo` for the 2-minute video.
 
 ## Architecture
 
